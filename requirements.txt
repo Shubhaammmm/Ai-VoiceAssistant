@@ -5,4 +5,3 @@ rich
 langchain
 langchain-community
 pyttsx3
-queue

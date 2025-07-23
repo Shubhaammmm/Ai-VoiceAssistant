@@ -27,10 +27,3 @@ before using the "python main.py" line you should be running an ollama model in 
 install ollama , download model , run model 
 then run the main.py
 
-## Installation
-1. Clone the repository:
-```bash
-git clone git@github.com:demibeing/Heckx_ai_assistant.git
-python main.py
-
-
