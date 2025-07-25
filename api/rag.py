@@ -4,7 +4,7 @@ from qdrant_client import QdrantClient
 from langchain_ollama import OllamaEmbeddings
 
 from qdrant_client.http.models import Distance, VectorParams
-from api.config import Config
+from config import Config
 from dotenv import load_dotenv
 import os
 

@@ -11,9 +11,9 @@ from rich.text import Text
 from langchain.memory import ConversationBufferMemory
 from langchain_community.chat_models import ChatOllama
 from langchain.prompts import PromptTemplate
-from api.tts import speak_text
-from api.config import Config
-from api.rag import retrieve_context
+from tts import speak_text
+from config import Config
+from rag import retrieve_context
 
 
 console = Console()
