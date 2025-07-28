@@ -3,7 +3,6 @@ import threading
 import numpy as np
 import whisper
 import sounddevice as sd
-import webrtcvad
 from queue import Queue
 from rich.console import Console
 from rich.panel import Panel
@@ -37,7 +36,10 @@ Your response:
 """
 
 PROMPT = PromptTemplate(input_variables=["history", "input", "context"], template=template)
-llm = ChatOllama(model=Config.OLLAMA_MODEL)
+llm = ChatOllama(
+    model=Config.OLLAMA_MODEL,
+    base_url="http://localhost:11434"  # or use "http://127.0.0.1:11434"
+)
 memory = ConversationBufferMemory(
     ai_prefix="Heckx:",
     human_prefix="You:",

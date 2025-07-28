@@ -11,7 +11,10 @@ import os
 load_dotenv()
 
 
-embeddings = OllamaEmbeddings(model="mxbai-embed-large")
+embeddings = OllamaEmbeddings(
+    model="mxbai-embed-large",
+    base_url="http://localhost:11434"
+)
 
 qdrant_client = QdrantClient(
     url=os.getenv("QDRANT_URL"),
