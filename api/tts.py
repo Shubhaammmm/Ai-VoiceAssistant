@@ -31,19 +31,25 @@ tts_model = TTS(model_name, progress_bar=False, gpu=False)
 has_alignment = hasattr(tts_model, "tts_with_alignment")
 g2p = G2p()
 
-# Define phoneme-to-morph mapping
-phoneme_to_morph = {
-    "AA": "mouthOpen", "AE": "mouthSmile", "AH": "mouthOpen", "AO": "mouthOpen",
-    "AW": "mouthOpen", "AY": "mouthSmile", "B": "mouthSmile", "CH": "mouthSmile",
-    "D": "mouthSmile", "DH": "mouthOpen", "EH": "mouthOpen", "ER": "mouthOpen",
-    "EY": "mouthSmile", "F": "mouthSmile", "G": "mouthOpen", "HH": "mouthOpen",
-    "IH": "mouthOpen", "IY": "mouthSmile", "JH": "mouthSmile", "K": "mouthSmile",
-    "L": "mouthSmile", "M": "mouthSmile", "N": "mouthSmile", "NG": "mouthSmile",
-    "OW": "mouthOpen", "OY": "mouthOpen", "P": "mouthSmile", "R": "mouthSmile",
-    "S": "mouthSmile", "SH": "mouthSmile", "T": "mouthSmile", "TH": "mouthOpen",
-    "UH": "mouthOpen", "UW": "mouthOpen", "V": "mouthSmile", "W": "mouthSmile",
-    "Y": "mouthSmile", "Z": "mouthSmile", "ZH": "mouthSmile"
+# Phoneme → morph mapping with weights (clamp applied later)
+phoneme_to_morph_weight = {
+    "AA": ("mouthOpen", 1.0), "AE": ("mouthOpen", 0.8), "AH": ("mouthOpen", 0.7),
+    "AO": ("mouthOpen", 0.9), "AW": ("mouthOpen", 1.0), "AY": ("mouthOpen", 0.8),
+    "B": ("mouthSmile", 1.0), "CH": ("mouthSmile", 0.8), "D": ("mouthSmile", 0.8),
+    "DH": ("mouthSmile", 0.7), "EH": ("mouthOpen", 0.6), "ER": ("mouthSmile", 0.7),
+    "EY": ("mouthOpen", 0.7), "F": ("mouthSmile", 0.7), "G": ("mouthSmile", 0.8),
+    "HH": ("mouthOpen", 0.5), "IH": ("mouthOpen", 0.5), "IY": ("mouthOpen", 0.6),
+    "JH": ("mouthSmile", 0.8), "K": ("mouthSmile", 0.7), "L": ("mouthSmile", 0.5),
+    "M": ("mouthSmile", 0.9), "N": ("mouthSmile", 0.7), "NG": ("mouthSmile", 0.6),
+    "OW": ("mouthOpen", 1.0), "OY": ("mouthOpen", 0.9), "P": ("mouthSmile", 0.9),
+    "R": ("mouthSmile", 0.6), "S": ("mouthSmile", 0.6), "SH": ("mouthSmile", 0.7),
+    "T": ("mouthSmile", 0.7), "TH": ("mouthSmile", 0.6), "UH": ("mouthOpen", 0.6),
+    "UW": ("mouthOpen", 0.8), "V": ("mouthSmile", 0.8), "W": ("mouthSmile", 0.5),
+    "Y": ("mouthSmile", 0.5), "Z": ("mouthSmile", 0.7), "ZH": ("mouthSmile", 0.7)
 }
+
+# Maximum morph weight allowed by your avatar
+MAX_MORPH_WEIGHT = 0.80
 
 def synthesize_with_phonemes(text: str) -> Optional[Dict[str, Any]]:
     try:
@@ -56,43 +62,52 @@ def synthesize_with_phonemes(text: str) -> Optional[Dict[str, Any]]:
             phonemes = output["phoneme"]
             durations = output["phoneme_duration"]
 
-            # Normalize durations to seconds
             total_duration = sum(durations)
             audio_duration = len(waveform) / sample_rate
             durations = [(d / total_duration) * audio_duration for d in durations]
         else:
             waveform = tts_model.tts(text)
             phonemes = g2p(text)
-
-            # Remove non-alphabetic tokens
             phonemes = [p for p in phonemes if p.isalpha()]
             audio_duration = len(waveform) / sample_rate
             duration_per_phoneme = audio_duration / len(phonemes) if phonemes else 0.05
             durations = [duration_per_phoneme] * len(phonemes)
 
-        # Encode audio as WAV
+        # Encode audio
         buffer = io.BytesIO()
         sf.write(buffer, waveform, samplerate=sample_rate, format='WAV')
         buffer.seek(0)
         audio_bytes = buffer.read()
 
-        # Quantize to 0.1 intervals
+        # Build output
         timeline = []
         morph_targets = []
-        step = 0.1
-        num_steps = int(1.0 / step)  # 10 steps (0.0 to 0.9)
-        valid_phonemes = [(p, phoneme_to_morph.get(p.upper())) for p in phonemes if phoneme_to_morph.get(p.upper())]
+        current_time = 0.0
 
-        for i, (p, morph) in enumerate(valid_phonemes):
-            start = round(i * step, 1)
-            end = round(min((i + 1) * step, 1.0), 1)
+        for i, p in enumerate(phonemes):
+            duration = durations[i]
+            start = round(current_time, 3)
+            end = round(current_time + duration, 3)
+            current_time = end
 
-            timeline.append({"char": p, "start": start, "end": end})
+            morph, weight = phoneme_to_morph_weight.get(p.upper(), ("mouthSmile", 0.4))
+
+            # Clamp weight to [0.0, 0.80]
+            weight = max(0.0, min(weight, MAX_MORPH_WEIGHT))
+
+            if not morph or weight <= 0 or start >= end:
+                continue
+
+            timeline.append({
+                "char": p,
+                "start": start,
+                "end": end
+            })
             morph_targets.append({
                 "morph": morph,
                 "start": start,
                 "end": end,
-                "weight": 1.0
+                "weight": round(weight, 2)
             })
 
         print(f"✅ Audio Duration: {round(audio_duration, 3)}s")
